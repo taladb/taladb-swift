@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2 — 2026-10-25
+
+- Built on TalaDB engine v0.12.1.
+
 ## 0.1.1 — 2026-10-04
 
 - Fixed: new live queries no longer wait behind running ones, so screens show their content immediately.
