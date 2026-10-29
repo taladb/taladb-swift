@@ -6,8 +6,8 @@ import PackageDescription
 // when the engine publishes. While they are empty, Apple builds use
 // engine/TalaDBFFI.xcframework, built from an engine checkout by
 // scripts/build-engine.sh on a Mac.
-let engineURL = "https://github.com/taladb/taladb/releases/download/v0.12.1/TalaDBFFI-0.12.1.xcframework.zip"
-let engineChecksum = "3770ccd96e84ae39279401492312edf069538a823fb747f42e563a3b958d2416"
+let engineURL = "https://github.com/taladb/taladb/releases/download/v0.13.0/TalaDBFFI-0.13.0.xcframework.zip"
+let engineChecksum = "6f4bb87208f509bfae94aaccf459dc5c4d3d26864633ed5656000e338ff01b3c"
 
 #if os(Linux)
     // On Linux the engine is a system library: scripts/build-engine.sh stages the
