@@ -1,13 +1,12 @@
 # Changelog
 
-## 0.13.0 — 2026-10-30
+## 0.2.0 — 2026-10-30
 
 - Built on TalaDB engine v0.13.0: faster sorted pages, selective queries and exact vector search on large indexes. Sorting a field that holds NaN no longer crashes, and indexed queries on strings containing NUL characters now return what a full scan returns. Details: [engine changelog](https://github.com/taladb/taladb/blob/main/CHANGELOG.md#0130--2026-10-29).
-- **Versions now follow the engine.** This package is released with the version of the TalaDB engine it is built on, starting with 0.13.0.
 
 ## 0.1.2 — not released
 
-- Prepared on engine v0.12.1 but never published; its changes are in 0.13.0.
+- Prepared on engine v0.12.1 but never published; its changes are in 0.2.0.
 
 ## 0.1.1 — 2026-10-04
 
