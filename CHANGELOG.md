@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2 — 2026-11-20
+
+- Built on TalaDB engine v0.13.2. **If you use encryption, update.** In 0.2.1 and earlier, opening an encrypted database without a passphrase could damage it: from then on the correct passphrase could not open it. Now that open throws `TalaDBError.engine` and writes nothing, as the `passphrase` docs already said. Opening a plaintext database with a passphrase also throws now, instead of leaving a `.taladb-salt` file next to it. A file already damaged by an earlier release is refused with or without the passphrase; the repair needs Rust and is described in the engine changelog.
+- `count` with a filter an index fully covers no longer reads documents, and an `aggregate` pipeline that starts with `$match` then `$group` reads only the fields it uses. `updateMany`, `updateOne`, `deleteOne` and `deleteMany` no longer skip a match that another write committed at the same moment. Reads no longer wait behind a queued write; under heavy concurrent reads, writes can be slower than in 0.2.1. An indexed equality query returns each document once, and `aggregate` over `$or`, multi-field `$and` and text-search plans gives the same result on every call. No API, storage format or C ABI change; no index rebuild needed. Details: [engine changelog](https://github.com/taladb/taladb/blob/main/CHANGELOG.md#0132--2026-11-20).
+
 ## 0.2.1 — 2026-11-15
 
 - Built on TalaDB engine v0.13.1. Text search now returns the same scores and order for the same query on the same data; before, documents matching three or more query terms could swap places between identical calls. Calling `createVectorIndex` again with HNSW options on an existing index no longer leaves the replaced graph in the vector cache, where it held memory and slowed exact search on large indexes. Results were never affected. No API, storage format or C ABI change; no index rebuild needed. Details: [engine changelog](https://github.com/taladb/taladb/blob/main/CHANGELOG.md#0131--2026-11-15).
