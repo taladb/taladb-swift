@@ -17,7 +17,7 @@ and optional encryption at rest. Everything runs on the device in a single file.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/taladb/taladb-swift", from: "0.2.1"),
+    .package(url: "https://github.com/taladb/taladb-swift", from: "0.2.2"),
 ],
 targets: [
     .target(name: "MyApp", dependencies: [.product(name: "TalaDB", package: "taladb-swift")]),
