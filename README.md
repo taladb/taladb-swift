@@ -17,7 +17,7 @@ and optional encryption at rest. Everything runs on the device in a single file.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/taladb/taladb-swift", from: "0.2.2"),
+    .package(url: "https://github.com/taladb/taladb-swift", from: "0.2.3"),
 ],
 targets: [
     .target(name: "MyApp", dependencies: [.product(name: "TalaDB", package: "taladb-swift")]),
@@ -69,13 +69,19 @@ call from the main actor. One `TalaDB` can be shared freely across tasks.
   operators — `$eq`, `$gt`, `$in`, `$exists`, `$contains`, `$set`, `$inc`,
   `$push`, `$group`, … — documented in the [engine docs](https://taladb.dev).
 - **`_id`**: every document has one. Leave it nil on insert and the engine
-  assigns a ULID.
+  assigns a ULID. For a document with an identity of its own — a settings
+  singleton, a row synced from a server — `deriveDocId(collection:key:)` gives
+  the same ULID every time, on every platform.
+- **Projection**: `find(filter, options: .exclude(["embedding"]))` leaves a
+  field out; `.fields([...])` keeps only those. Declare the missing fields
+  optional in the document type.
 - **Untyped access**: `db.collection("name")` works with raw `JSONValue` objects.
 - **Encryption**: `TalaDB.open(at: url, config: TalaDBConfig(passphrase: key))`.
   The config's `description` never prints the passphrase.
 - **Errors**: engine errors (bad filter, missing index, wrong passphrase,
-  duplicate `_id`) throw `TalaDBError.engine`; calls after `close()` throw
-  `.closed`.
+  duplicate `_id`) throw `TalaDBError.engine(message, code:)`; branch on
+  `error.code` against `TalaDBErrorCode` (`.encryption`, `.duplicateId`, …),
+  not on the message. Calls after `close()` throw `.closed`.
 - **Closing**: `close()` waits for running operations and is idempotent. A
   database also closes when its last reference goes away.
 
@@ -93,6 +99,9 @@ for try await open in notes.watch(["done": false]) {
 
 Each iteration holds its own subscription, which closes when the task is
 cancelled or the loop exits.
+
+`watch(filter, options:)` projects every snapshot like `find`, so a list that
+never shows an embedding can leave it out of each update.
 
 ### Migrations
 

@@ -37,9 +37,10 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
         try await call("insertMany", [jsonArray(try documents.map(Self.encodeDocument))], as: [String].self)
     }
 
-    /// Every document matching `filter`.
-    public func find(_ filter: Filter = [:]) async throws -> [Document] {
-        try await call("find", [try jsonText(filter)], as: [Document].self)
+    /// Every document matching `filter`. `options` limits which fields come
+    /// back — see ``FindOptions``.
+    public func find(_ filter: Filter = [:], options: FindOptions? = nil) async throws -> [Document] {
+        try await call("find", try Self.findArgs(filter, options), as: [Document].self)
     }
 
     /// The first document matching `filter`, or nil.
@@ -102,18 +103,24 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
     ///     render(open)
     /// }
     /// ```
-    public func watch(_ filter: Filter = [:]) -> AsyncThrowingStream<[Document], Error> {
+    ///
+    /// `options` projects every snapshot like ``find(_:options:)``: a screen
+    /// that never shows an embedding can leave it out of each update.
+    public func watch(_ filter: Filter = [:], options: FindOptions? = nil) -> AsyncThrowingStream<[Document], Error> {
         let database = database
         let name = name
         return AsyncThrowingStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task {
                 do {
                     let filterJSON = try jsonText(filter)
+                    let optionsJSON = try options.map { try jsonText($0.json) }
                     // Subscribe before reading the initial state, so a write
                     // that lands between the two still wakes the loop below.
-                    let watch = try await database.watchOpen(collection: name, filter: filterJSON)
+                    let watch = try await database.watchOpen(
+                        collection: name, filter: filterJSON, options: optionsJSON)
                     defer { database.watchClose(watch) }
-                    var last = try await database.call("find", [jsonText(name), filterJSON], as: JSONValue.self)
+                    var last = try await database.call(
+                        "find", [jsonText(name), filterJSON] + (optionsJSON.map { [$0] } ?? []), as: JSONValue.self)
                     continuation.yield(try Self.decode([Document].self, last))
                     while !Task.isCancelled {
                         guard let text = try await database.watchNext(watch, timeoutMs: Self.watchPollMs) else {
@@ -281,6 +288,14 @@ public struct TalaCollection<Document: Codable & Sendable>: Sendable {
     ) async throws -> R {
         let name = name
         return try await database.call(op, [try jsonText(name)] + (try args()), as: type)
+    }
+
+    /// `find`'s arguments after the collection name: the filter, then the
+    /// projection only when there is one.
+    static func findArgs(_ filter: Filter, _ options: FindOptions?) throws -> [String] {
+        var args = [try jsonText(filter)]
+        if let options { args.append(try jsonText(options.json)) }
+        return args
     }
 
     static func encodeDocument(_ document: Document) throws -> String {

@@ -4,7 +4,15 @@ import Foundation
 public enum TalaDBError: Error, Sendable, Equatable, CustomStringConvertible {
     /// Reported by the engine: an invalid filter, a missing index, a duplicate
     /// `_id`, a wrong passphrase, a storage failure.
-    case engine(String)
+    ///
+    /// `code` names the kind of failure — one of ``TalaDBErrorCode`` — so a
+    /// caller can branch on it without parsing the message: `"Encryption"` for
+    /// a wrong passphrase, `"DuplicateId"`, `"InvalidFilter"`. It is nil for
+    /// failures the engine did not classify.
+    ///
+    /// Match the message alone with `case .engine(let message, _)`, or read
+    /// ``code`` from any `TalaDBError`.
+    case engine(String, code: String? = nil)
     /// The database was closed.
     case closed
     /// An argument this package rejected before calling the engine.
@@ -16,9 +24,16 @@ public enum TalaDBError: Error, Sendable, Equatable, CustomStringConvertible {
     /// engine releases.
     case incompatibleEngine(header: UInt32, library: UInt32)
 
+    /// The engine's error code for an ``engine(_:code:)`` error; nil for every
+    /// other case and for failures the engine did not classify.
+    public var code: String? {
+        if case .engine(_, let code) = self { return code }
+        return nil
+    }
+
     public var description: String {
         switch self {
-        case .engine(let message): return message
+        case .engine(let message, _): return message
         case .closed: return "TalaDB database is closed"
         case .invalidArgument(let message): return message
         case .decoding(let message): return "TalaDB result could not be decoded: \(message)"
@@ -84,6 +99,70 @@ public struct HnswOptions: Sendable, Codable, Equatable {
         self.m = m
         self.efConstruction = efConstruction
         self.quantization = quantization
+    }
+}
+
+/// The engine's error codes, as carried by ``TalaDBError/engine(_:code:)``.
+///
+/// They are a public contract shared with every TalaDB binding: new codes may
+/// be added, and an existing one never changes meaning. Compare with them
+/// rather than with error messages, which may be reworded.
+public enum TalaDBErrorCode {
+    /// A wrong passphrase, a passphrase for an unencrypted database, or none
+    /// for an encrypted one.
+    public static let encryption = "Encryption"
+    public static let duplicateId = "DuplicateId"
+    public static let invalidFilter = "InvalidFilter"
+    public static let invalidDocumentId = "InvalidDocumentId"
+    public static let invalidName = "InvalidName"
+    public static let invalidOperation = "InvalidOperation"
+    public static let indexExists = "IndexExists"
+    public static let indexNotFound = "IndexNotFound"
+    public static let vectorIndexNotFound = "VectorIndexNotFound"
+    public static let vectorDimensionMismatch = "VectorDimensionMismatch"
+    public static let compoundIndexMultipleArrays = "CompoundIndexMultipleArrays"
+    public static let notFound = "NotFound"
+    public static let typeError = "TypeError"
+    public static let serialization = "Serialization"
+    public static let storage = "Storage"
+    public static let migration = "Migration"
+    public static let config = "Config"
+    public static let invalidSnapshot = "InvalidSnapshot"
+    public static let queryTimeout = "QueryTimeout"
+    public static let searchMemoryLimit = "SearchMemoryLimit"
+    public static let changesetTooLarge = "ChangesetTooLarge"
+    public static let watchBackpressure = "WatchBackpressure"
+    public static let watchClosed = "WatchClosed"
+}
+
+/// Which fields `find` and `watch` return. Leaving out a large field a screen
+/// does not show — an embedding — keeps every result, and every live-query
+/// update, small.
+///
+/// `_id` is always returned. A document type read with a projection must
+/// tolerate the missing fields, for example by declaring them optional.
+public struct FindOptions: Sendable, Equatable {
+    /// Return only these fields (plus `_id`); nil returns every field.
+    public var fields: [String]?
+    /// Leave these fields out.
+    public var exclude: [String]?
+
+    public init(fields: [String]? = nil, exclude: [String]? = nil) {
+        self.fields = fields
+        self.exclude = exclude
+    }
+
+    /// Only `fields`, plus `_id`.
+    public static func fields(_ fields: [String]) -> FindOptions { FindOptions(fields: fields) }
+
+    /// Every field except `fields`.
+    public static func exclude(_ fields: [String]) -> FindOptions { FindOptions(exclude: fields) }
+
+    var json: JSONValue {
+        var o: [String: JSONValue] = [:]
+        if let fields { o["fields"] = .array(fields.map(JSONValue.string)) }
+        if let exclude { o["exclude"] = .array(exclude.map(JSONValue.string)) }
+        return .object(o)
     }
 }
 

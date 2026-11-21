@@ -8,10 +8,12 @@ import TalaDBFFI
 // the failing call, in the same synchronous block — never across an `await`,
 // where the task could resume on another thread and read that thread's slot.
 
-/// The error the engine reported for the call that just failed on this thread.
+/// The error the engine reported for the call that just failed on this thread,
+/// with its code. Both are thread-local, so they are read together here.
 func engineError(_ fallback: String) -> TalaDBError {
-    guard let message = taladb_last_error() else { return .engine(fallback) }
-    return .engine(String(cString: message))
+    let code = taladb_last_error_code().map { String(cString: $0) }
+    guard let message = taladb_last_error() else { return .engine(fallback, code: code) }
+    return .engine(String(cString: message), code: code)
 }
 
 /// Copy an engine-owned result string into a Swift string and free it. A NULL
