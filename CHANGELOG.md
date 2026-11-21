@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.2.3 — Unreleased
+## 0.2.3 — 2026-11-21
 
-Three APIs the Kotlin and JavaScript bindings already had. Still built on TalaDB engine v0.13.2; no engine, storage format or C ABI change.
+Three APIs the Kotlin and JavaScript bindings already had. Built on TalaDB engine v0.13.3, a React Native iOS hotfix that changes nothing this package uses: no storage format or C ABI change. Details: [engine changelog](https://github.com/taladb/taladb/blob/main/CHANGELOG.md#0133--2026-11-21).
 
 - **`deriveDocId(collection:key:)`** returns a stable `_id` for a row that already has an identity elsewhere, or for a singleton document such as settings. The same `(collection, key)` always gives the same ULID, byte-identical to the engine's `derive_doc_id` and the other bindings, so every client addresses a row with the same id. Inserting under it a second time fails with `DuplicateId` instead of creating a copy.
 - **Projection on `find` and `watch`**: `find(_:options:)` and `watch(_:options:)` take `FindOptions`. `.exclude(["embedding"])` leaves a field out and `.fields([...])` keeps only those (plus `_id`). For a live query, every snapshot is projected, so a screen that never shows an embedding no longer receives every vector on every write. A document type read with a projection must declare the missing fields optional.
