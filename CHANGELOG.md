@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.3 — Unreleased
+
+Three APIs the Kotlin and JavaScript bindings already had. Still built on TalaDB engine v0.13.2; no engine, storage format or C ABI change.
+
+- **`deriveDocId(collection:key:)`** returns a stable `_id` for a row that already has an identity elsewhere, or for a singleton document such as settings. The same `(collection, key)` always gives the same ULID, byte-identical to the engine's `derive_doc_id` and the other bindings, so every client addresses a row with the same id. Inserting under it a second time fails with `DuplicateId` instead of creating a copy.
+- **Projection on `find` and `watch`**: `find(_:options:)` and `watch(_:options:)` take `FindOptions`. `.exclude(["embedding"])` leaves a field out and `.fields([...])` keeps only those (plus `_id`). For a live query, every snapshot is projected, so a screen that never shows an embedding no longer receives every vector on every write. A document type read with a projection must declare the missing fields optional.
+- **Engine error codes**: `TalaDBError.engine` now carries the engine's code, such as `"Encryption"` for a wrong passphrase, `"DuplicateId"` or `"InvalidFilter"`, and `TalaDBError.code` reads it from any error. `TalaDBErrorCode` lists them. Codes are shared with every binding and never change meaning, so branch on them rather than on the message.
+
+  **Source compatibility:** the case is now `engine(String, code: String? = nil)`. Creating `.engine("message")` and comparing with `==` still compile. A pattern that binds one value, `case .engine(let message)`, still compiles, but Swift now binds the message *and* the code as a tuple, with a deprecation warning. Change it to `case .engine(let message, _)`, or use `error.description`.
+
 ## 0.2.2 — 2026-11-20
 
 - Built on TalaDB engine v0.13.2. **If you use encryption, update.** In 0.2.1 and earlier, opening an encrypted database without a passphrase could damage it: from then on the correct passphrase could not open it. Now that open throws `TalaDBError.engine` and writes nothing, as the `passphrase` docs already said. Opening a plaintext database with a passphrase also throws now, instead of leaving a `.taladb-salt` file next to it. A file already damaged by an earlier release is refused with or without the passphrase; the repair needs Rust and is described in the engine changelog.

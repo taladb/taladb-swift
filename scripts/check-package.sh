@@ -61,4 +61,5 @@ if [[ "$(uname -s)" != Darwin ]]; then
     args=(-Xlinker -L"$HOST" -Xlinker -rpath -Xlinker "$HOST")
 fi
 cd "$WORK/app"
-swift run "${args[@]}" App
+# ${args[@]+...}: bash 3.2 (macOS /bin/bash) treats an empty array as unbound under set -u.
+swift run ${args[@]+"${args[@]}"} App

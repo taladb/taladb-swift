@@ -191,11 +191,15 @@ public final class TalaDB: @unchecked Sendable {
 
     // MARK: - Live queries (used by TalaCollection.watch)
 
-    func watchOpen(collection: String, filter: String) async throws -> LiveQuery {
+    /// `options` is `FindOptions` JSON, applied to every snapshot; nil is the
+    /// same as `taladb_watch`.
+    func watchOpen(collection: String, filter: String, options: String? = nil) async throws -> LiveQuery {
         // An ordinary operation on the handle, not a barrier: subscribing
         // never waits behind other live queries' polls.
         try await run { handle in
-            let watch = try withCStrings([collection, filter]) { p in taladb_watch(handle, p[0], p[1]) }
+            let watch = try withCStrings([collection, filter, options]) { p in
+                taladb_watch_with_options(handle, p[0], p[1], p[2])
+            }
             guard let watch else { throw engineError("failed to open live query") }
             let live = LiveQuery(pointer: watch)
             self.watchesLock.locked { _ = self.watches.insert(live) }
