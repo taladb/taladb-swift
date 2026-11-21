@@ -25,6 +25,24 @@ final class HotfixAPITests: DatabaseTestCase {
         }
     }
 
+    /// Edge cases the shared vectors do not reach, with ids produced by the
+    /// engine's Rust `derive_doc_id`. The hash is over UTF-8 bytes: a NUL is
+    /// hashed rather than ending the string, and two canonically equal
+    /// spellings of "é" (equal under Swift's `==`) give different ids.
+    func testDeriveDocIdEdgeCasesMatchTheEngine() {
+        let vectors: [(String, String, String)] = [
+            ("", "\u{0}", "08G2A5PKXB3FMNN83K61AJEE25"),
+            ("\u{E9}", "e\u{301}", "2S7GSMHVSWCJZPSTH3X3G444MH"),
+            ("e\u{301}", "\u{E9}", "6MCHGNRRSWCJZPY0S48G08EMHS"),
+            ("\u{10FFFF}", "\u{FEFF}", "76AC2ZZ635K3RCTM5XN24MM2SD"),
+        ]
+        for (collection, key, expected) in vectors {
+            XCTAssertEqual(
+                deriveDocId(collection: collection, key: key), expected,
+                "(\(Array(collection.utf8)), \(Array(key.utf8)))")
+        }
+    }
+
     func testDeriveDocIdSeparatesCollectionFromKey() {
         XCTAssertNotEqual(deriveDocId(collection: "ab", key: "c"), deriveDocId(collection: "a", key: "bc"))
         XCTAssertNotEqual(deriveDocId(collection: "products", key: "1"), deriveDocId(collection: "orders", key: "1"))
@@ -52,7 +70,10 @@ final class HotfixAPITests: DatabaseTestCase {
         var id: String?
         var text: String?
         var embedding: [Float]?
-        enum CodingKeys: String, CodingKey { case id = "_id", text, embedding }
+        enum CodingKeys: String, CodingKey {
+            case id = "_id"
+            case text, embedding
+        }
     }
 
     func testFindLeavesOutExcludedFieldsAndKeepsOnlyListedOnes() async throws {
@@ -97,7 +118,41 @@ final class HotfixAPITests: DatabaseTestCase {
         XCTAssertEqual(found.map(\.title), ["plain"])
     }
 
+    /// The engine's projection contract: `_id` always survives, names are
+    /// top-level keys (a dotted name is not a nested path), and an empty
+    /// `FindOptions` changes nothing.
+    func testProjectionKeepsIdAndOnlyTopLevelFields() async throws {
+        let db = try await TalaDB.open(at: file())
+        defer { db.close() }
+        let docs = db.collection("docs")
+        let id = try await docs.insert(["a": 1, "meta": ["title": "t"]])
+
+        let onlyId = try await docs.find([:], options: .fields([]))
+        XCTAssertEqual(onlyId, [["_id": .string(id)]])
+        let excludeId = try await docs.find([:], options: .exclude(["_id"]))
+        XCTAssertEqual(excludeId.first?["_id"], .string(id))
+        let dotted = try await docs.find([:], options: .fields(["meta.title"]))
+        XCTAssertEqual(dotted, [["_id": .string(id)]])
+        let plain = try await docs.find()
+        let empty = try await docs.find([:], options: FindOptions())
+        XCTAssertEqual(empty, plain)
+    }
+
     // MARK: - Error codes
+
+    /// Codes come from the direct native entry points too, not only from
+    /// `taladb_call`.
+    func testCodesSurfaceFromDirectNativeCallsToo() async throws {
+        let db = try await TalaDB.open(at: file())
+        defer { db.close() }
+        let docs = db.collection("docs", as: Doc.self)
+        await assertThrowsAsync(try await docs.dropIndex("missing")) {
+            ($0 as? TalaDBError)?.code == TalaDBErrorCode.indexNotFound
+        }
+        await assertThrowsAsync(try await docs.findNearest("embedding", vector: [1, 0], topK: 1)) {
+            ($0 as? TalaDBError)?.code == TalaDBErrorCode.vectorIndexNotFound
+        }
+    }
 
     func testAnInvalidFilterCarriesItsCode() async throws {
         let db = try await TalaDB.open(at: file())
