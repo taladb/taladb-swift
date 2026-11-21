@@ -8,7 +8,70 @@ Three APIs the Kotlin and JavaScript bindings already had. Still built on TalaDB
 - **Projection on `find` and `watch`**: `find(_:options:)` and `watch(_:options:)` take `FindOptions`. `.exclude(["embedding"])` leaves a field out and `.fields([...])` keeps only those (plus `_id`). For a live query, every snapshot is projected, so a screen that never shows an embedding no longer receives every vector on every write. A document type read with a projection must declare the missing fields optional.
 - **Engine error codes**: `TalaDBError.engine` now carries the engine's code, such as `"Encryption"` for a wrong passphrase, `"DuplicateId"` or `"InvalidFilter"`, and `TalaDBError.code` reads it from any error. `TalaDBErrorCode` lists them. Codes are shared with every binding and never change meaning, so branch on them rather than on the message.
 
-  **Source compatibility:** the case is now `engine(String, code: String? = nil)`. Creating `.engine("message")` and comparing with `==` still compile. A pattern that binds one value, `case .engine(let message)`, still compiles, but Swift now binds the message *and* the code as a tuple, with a deprecation warning. Change it to `case .engine(let message, _)`, or use `error.description`.
+### Source compatibility
+
+**This release can break builds.** The `engine` case is now `engine(String, code: String? = nil)`, and `find` and `watch` gained an `options:` parameter. Both are deliberate: shipping error codes and projection in 0.2.3 was chosen over keeping every existing pattern compiling. SwiftPM's `from: "0.2.x"` resolves to 0.2.3, so check the cases below when you update.
+
+Still compiles, unchanged:
+
+- Creating an error: `TalaDBError.engine("message")`.
+- `if case .engine = error`, `error.description`, and calls such as `find()`, `find(filter)`, `watch()` and `watch(filter)`.
+
+Needs a change:
+
+1. **A pattern that binds one value and uses it as a `String`** no longer compiles. Bind both values:
+
+   ```swift
+   // 0.2.2
+   case .engine(let message): return message
+   catch TalaDBError.engine(let message) { return message }
+   // 0.2.3
+   case .engine(let message, _): return message
+   catch TalaDBError.engine(let message, _) { return message }
+   ```
+
+2. **A pattern that binds one value and uses it generically**, such as `print(message)`, still compiles, but `message` is now the tuple `(String, code: String?)`, and Swift warns: "enum case 'engine' has 2 associated values; matching them as a tuple is deprecated". A project built with `-warnings-as-errors` fails. Use the same fix: `case .engine(let message, _)`.
+
+3. **A literal pattern** no longer compiles:
+
+   ```swift
+   // 0.2.2
+   case .engine("expected message"):
+   // 0.2.3
+   case .engine("expected message", _):
+   ```
+
+4. **The case used as a function value** no longer compiles. Wrap it in a closure:
+
+   ```swift
+   // 0.2.2
+   let make: (String) -> TalaDBError = TalaDBError.engine
+   let errors = messages.map(TalaDBError.engine)
+   // 0.2.3
+   let make: (String) -> TalaDBError = { .engine($0) }
+   let errors = messages.map { TalaDBError.engine($0) }
+   ```
+
+5. **`find` or `watch` used as a function value** no longer compiles, because each gained an `options:` parameter. Wrap it in a closure:
+
+   ```swift
+   // 0.2.2
+   let finder: (Filter) async throws -> [Note] = notes.find
+   let watcher: (Filter) -> AsyncThrowingStream<[Note], Error> = notes.watch
+   // 0.2.3
+   let finder: (Filter) async throws -> [Note] = { try await notes.find($0) }
+   let watcher: (Filter) -> AsyncThrowingStream<[Note], Error> = { notes.watch($0) }
+   ```
+
+6. **Comparing with a code-less error** still compiles but can give a different result. An error the engine throws now carries its code, so `error == .engine(message)` is `false` where 0.2.2 gave `true`. Compare the code, or match the message alone:
+
+   ```swift
+   // 0.2.2
+   if error == .engine("expected message") { … }
+   // 0.2.3
+   if error.code == TalaDBErrorCode.duplicateId { … }
+   if case .engine(let message, _) = error, message == "expected message" { … }
+   ```
 
 ## 0.2.2 — 2026-11-20
 
